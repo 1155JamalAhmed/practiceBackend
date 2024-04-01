@@ -19,12 +19,15 @@ io.use(async (socket, next) => {
     userIdRefToSocket[authenticatedUser._id.toString()] = socket.id;
     next();
   } catch (err) {
-    socket.emit("unauthenticated", "You are not authenticated");
-    socket.disconnect();
+    next("unauthorized");
   }
 });
 
 io.on("connection", async (socket) => {
+  if (!socket.user) {
+    socket.disconnect();
+  }
+
   socket.on("joinRoom", async ({ convoId }) => {
     if (!socket.user) {
       return socket.emit("unauthenticated", "You are not authenticated");
@@ -49,13 +52,11 @@ io.on("connection", async (socket) => {
     }
   });
 
-  socket.on("newMessage", async (data) => {
+  socket.on("newMessage", async (data, callback) => {
     const { message, convoId } = data;
     try {
       if (!socket.user) {
-        return io
-          .to(socket.id)
-          .emit("unauthorized", "You are not authenticated");
+        return callback(new Error("user is not authorised"));
       }
 
       if (!message || !convoId) {
@@ -104,9 +105,10 @@ io.on("connection", async (socket) => {
         await fcmSendThisNotification(
           // [receiverUser?.deviceToken],
           [
-            "cykSkTRm5rZEWVwGtsu2dT:APA91bEEq6QF-kdxHvd3ilfl7i4NFlByPlcebtKcxgKjd1IDnldOeN7kmuTWUCfMl6YMqEY5jhNDfdrbr3p75v8w9hFTxxxPUINQx_h0T2dUaXKQzfq9nXDaeK__xdZ2Rs03twEWYzTO",
+            "cOEAQqG2fCbqV9Yl8FLb1b:APA91bEBx3szDF-w-qwgl0qkZyN9ZJ_wLWaZcdRa1EooqRywG9fuo4jR5p-6AdhnBDBk48H9pK7QoO68GFdgQMxFqwPgFghT4_I-x2OvaZOUyDiuSvVfizRy3__q7p3Q_E3Uheb38I7R",
           ],
-          savedMessage
+          savedMessage,
+          socket.user.name
         );
       }
     } catch (err) {
